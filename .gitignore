@@ -1,0 +1,5 @@
+
+# Vim
+.vim/plugged
+.vim/undodir
+.vim/.netrwhist

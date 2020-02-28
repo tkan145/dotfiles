@@ -1,0 +1,12 @@
+let g:netrw_dirhistmax  =10
+let g:netrw_dirhistcnt =2
+let g:netrw_dirhist_2='/home/mark/go/src/eng-source.jacques.com.au/j4config/backend/init'
+let g:netrw_dirhist_1='/home/mark/go/src/eng-source.jacques.com.au/j4testjig/proxy/j4proxy_client'
+let g:netrw_dirhist_0='/home/mark/go/src/eng-source.jacques.com.au/j4testjig/proxy/client'
+let g:netrw_dirhist_9='/home/mark/go/src/eng-source.jacques.com.au/j4testjig/proxy/j4proxy_client'
+let g:netrw_dirhist_8='/home/mark/go/src/eng-source.jacques.com.au/dct/lib'
+let g:netrw_dirhist_7='/home/mark/.vim/vimrcs'
+let g:netrw_dirhist_6='/home/mark/webapps-j4testjig/frontend'
+let g:netrw_dirhist_5='/home/mark/go/src/eng-source.jacques.com.au/j4testjig/proxy/client'
+let g:netrw_dirhist_4='/home/mark/go/src/eng-source.jacques.com.au/j4testjig'
+let g:netrw_dirhist_3='/home/mark/go/src/eng-source.jacques.com.au/prototype/jig-proxy-sndb/dct-provider'
