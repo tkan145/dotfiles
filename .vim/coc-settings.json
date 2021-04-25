@@ -1,23 +1,31 @@
 {
-    "coc.preferences.diagnostic.displayByAle": true,
     "coc.preferences.useQuickfixForLocations": true,
+    "coc.preferences.formatOnSaveFiletypes": ["go", "python", "json", "html", "css"],
+    "coc.preferences.messageLevel": "error",
+    "diagnostic.refreshOnInsertMode": true,
+    "diagnostic.refreshAfterSave": true,
     "python.jediEnabled": false,
-    "suggest.enablePreview": true,
     "languageserver": {
+        "golang": {
+            "command": "gopls",
+            "rootPatterns": ["go.mod"],
+            "disableWorkspaceFolders": true,
+            "filetypes": ["go"],
+            "initializationOptions": {
+                "usePlaceholders": true,
+                "completeUnimported": true,
+                "formatTool": "goimports"
+            }
+        },
         "ccls": {
             "command": "ccls",
-            "filetypes": ["c", "cpp"],
-            "rootPatterns": [".ccls", "compile_commands.json", ".vim/", ".git/", ".hg/"],
+            "filetypes": ["c", "cpp", "objc", "objcpp"],
+            "rootPatterns": [".ccls", "compile_commands.json", ".git/", ".hg/"],
             "initializationOptions": {
                 "cache": {
                     "directory": "/tmp/ccls"
                 }
             }
-        },
-        "golang": {
-            "command": "/home/mark/go/bin/gopls",
-            "rootPatterns": ["go.mod"],
-            "filetypes": ["go"]
         }
     }
 }
