@@ -1,0 +1,161 @@
+local nvim_lsp = require('lspconfig')
+
+-- Use an on_attach function to only map the following keys
+-- after the language server attaches to the current buffer
+local on_attach = function(client, bufnr)
+  local function buf_set_keymap(...) vim.api.nvim_buf_set_keymap(bufnr, ...) end
+  local function buf_set_option(...) vim.api.nvim_buf_set_option(bufnr, ...) end
+
+  -- Enable completion triggered by <c-x><c-o>
+  buf_set_option('omnifunc', 'v:lua.vim.lsp.omnifunc')
+
+  -- Mappings.
+  local opts = { noremap=true, silent=true }
+
+  -- See `:help vim.lsp.*` for documentation on any of the below functions
+  buf_set_keymap('n', 'gD', '<cmd>lua vim.lsp.buf.declaration()<CR>', opts)
+  buf_set_keymap('n', 'gd', '<cmd>lua vim.lsp.buf.definition()<CR>', opts)
+  buf_set_keymap('n', 'K', '<cmd>lua vim.lsp.buf.hover()<CR>', opts)
+  buf_set_keymap('n', 'gi', '<cmd>lua vim.lsp.buf.implementation()<CR>', opts)
+  buf_set_keymap('n', 'gr', '<cmd>lua vim.lsp.buf.references()<CR>', opts)
+  buf_set_keymap('n', '<C-k>', '<cmd>lua vim.lsp.buf.signature_help()<CR>', opts)
+  buf_set_keymap('n', '[d', '<cmd>lua vim.lsp.diagnostic.goto_prev()<CR>', opts)
+  buf_set_keymap('n', ']d', '<cmd>lua vim.lsp.diagnostic.goto_next()<CR>', opts)
+  buf_set_keymap('n', '<space>wa', '<cmd>lua vim.lsp.buf.add_workspace_folder()<CR>', opts)
+  buf_set_keymap('n', '<space>wr', '<cmd>lua vim.lsp.buf.remove_workspace_folder()<CR>', opts)
+  buf_set_keymap('n', '<space>wl', '<cmd>lua print(vim.inspect(vim.lsp.buf.list_workspace_folders()))<CR>', opts)
+  buf_set_keymap('n', '<space>D', '<cmd>lua vim.lsp.buf.type_definition()<CR>', opts)
+  buf_set_keymap('n', '<leader>rn', '<cmd>lua vim.lsp.buf.rename()<CR>', opts)
+  buf_set_keymap('n', '<space>ca', '<cmd>lua vim.lsp.buf.code_action()<CR>', opts)
+  buf_set_keymap('n', '<space>e', '<cmd>lua vim.lsp.diagnostic.show_line_diagnostics()<CR>', opts)
+  buf_set_keymap('n', '<space>q', '<cmd>lua vim.lsp.diagnostic.set_loclist()<CR>', opts)
+  buf_set_keymap('n', '<space>f', '<cmd>lua vim.lsp.buf.formatting()<CR>', opts)
+  
+  if client.resolved_capabilities.document_formatting then
+	vim.api.nvim_command [[augroup Format]]
+	vim.api.nvim_command [[autocmd! * <buffer>]]
+	vim.api.nvim_command [[autocmd BufWritePre <buffer> lua vim.lsp.buf.formatting_seq_sync()]]
+	vim.api.nvim_command [[augroup END]]
+  end
+
+  if client.resolved_capabilities.document_highlight then
+	vim.api.nvim_command [[augroup lsp_document_hightlight]]
+	vim.api.nvim_command [[:hi LspReferenceRead cterm=bold ctermbg=red guibg=LightYellow]]
+	vim.api.nvim_command [[:hi LspReferenceText cterm=bold ctermbg=red guibg=LightYellow]]
+	vim.api.nvim_command [[:hi LspReferenceWrite cterm=bold ctermbg=red guibg=LightYellow]]
+	vim.api.nvim_command [[autocmd CursorHold <buffer> lua vim.lsp.buf.document_highlight()]]
+	vim.api.nvim_command [[autocmd CursorMoved <buffer> lua vim.lsp.buf.clear_references()]]
+	vim.api.nvim_command [[augroup END]]
+  end
+end
+
+-- nvim-cmp supports additional completion capabilities
+local capabilities = vim.lsp.protocol.make_client_capabilities()
+capabilities = require('cmp_nvim_lsp').update_capabilities(capabilities)
+
+-- Use a loop to conveniently call 'setup' on multiple servers and
+-- map buffer local keybindings when the language server attaches
+local servers = { 'pyright', 'gopls' }
+for _, lsp in ipairs(servers) do
+	nvim_lsp[lsp].setup {
+		on_attach = on_attach,
+		capabilities = capabilities,
+		flags = {
+			debounce_text_changes = 150,
+		}
+	}
+end
+
+-- Import on save
+function org_imports(timeout_ms)
+    local context = { only = { "source.organizeImports" } }
+    vim.validate { context = { context, "t", true } }
+
+    local params = vim.lsp.util.make_range_params()
+    params.context = context
+    
+	-- See the implementation of the textDocument/codeAction callback
+    -- (lua/vim/lsp/handler.lua) for how to do this properly.
+    local result = vim.lsp.buf_request_sync(0, "textDocument/codeAction", params, timeout_ms)
+    if not result or next(result) == nil then return end
+    local actions = result[1].result
+    if not actions then return end
+    local action = actions[1]
+    
+	-- textDocument/codeAction can return either Command[] or CodeAction[]. If it
+    -- is a CodeAction, it can have either an edit, a command or both. Edits
+    -- should be executed first.
+    if action.edit or type(action.command) == "table" then
+      if action.edit then
+        vim.lsp.util.apply_workspace_edit(action.edit)
+      end
+      if type(action.command) == "table" then
+        vim.lsp.buf.execute_command(action.command)
+      end
+    else
+      vim.lsp.buf.execute_command(action)
+    end
+end
+
+-- Gopls custom config
+nvim_lsp.gopls.setup {
+	cmd = {"gopls", "serve"},
+	settings = {
+		gopls = {
+		analyses = {
+			unusedparams = true,
+		},
+		staticcheck = true,
+		},
+	},
+}
+
+-- Set completeopt to have a better completion experience
+vim.o.completeopt = 'menuone,noselect'
+
+-- luasnip setup
+-- local luasnip = require 'luasnip'
+
+-- nvim-cmp setup
+local cmp = require 'cmp'
+cmp.setup {
+  snippet = {
+    expand = function(args)
+      -- require('luasnip').lsp_expand(args.body)
+    end,
+  },
+  mapping = {
+    ['<C-p>'] = cmp.mapping.select_prev_item(),
+    ['<C-n>'] = cmp.mapping.select_next_item(),
+    ['<C-d>'] = cmp.mapping.scroll_docs(-4),
+    ['<C-f>'] = cmp.mapping.scroll_docs(4),
+    ['<C-Space>'] = cmp.mapping.complete(),
+    ['<C-e>'] = cmp.mapping.close(),
+    ['<CR>'] = cmp.mapping.confirm {
+      behavior = cmp.ConfirmBehavior.Replace,
+      select = true,
+    },
+    ['<Tab>'] = function(fallback)
+      if vim.fn.pumvisible() == 1 then
+        vim.fn.feedkeys(vim.api.nvim_replace_termcodes('<C-n>', true, true, true), 'n')
+      -- elseif luasnip.expand_or_jumpable() then
+        -- vim.fn.feedkeys(vim.api.nvim_replace_termcodes('<Plug>luasnip-expand-or-jump', true, true, true), '')
+      else
+        fallback()
+      end
+    end,
+    ['<S-Tab>'] = function(fallback)
+      if vim.fn.pumvisible() == 1 then
+        vim.fn.feedkeys(vim.api.nvim_replace_termcodes('<C-p>', true, true, true), 'n')
+      -- elseif luasnip.jumpable(-1) then
+        -- vim.fn.feedkeys(vim.api.nvim_replace_termcodes('<Plug>luasnip-jump-prev', true, true, true), '')
+      else
+        fallback()
+      end
+    end,
+  },
+  sources = {
+    { name = 'nvim_lsp' },
+    -- { name = 'luasnip' },
+  },
+}
