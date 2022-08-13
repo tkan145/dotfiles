@@ -1,9 +1,12 @@
 #!/bin/bash
 
-git config --global user.email "tkan145@gmail.com"
-git config --global user.name "Mark Tran"
+cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
 
+BASE=$(pwd)
+ln -sf $BASE/gitconfig ~/.gitconfig
 ln -sf $BASE/zshrc ~/.zshrc
 ln -sf $BASE/tmux.conf ~/.tmux.conf
 
-./install-vim
+tmux source-file ~/.tmux.conf
+$BASE/install-vim
+

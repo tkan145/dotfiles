@@ -1,5 +1,3 @@
-
-
 let s:darwin = has('mac')
 let mapleader      = ','
 let maplocalleader = ','
@@ -15,7 +13,7 @@ silent! if plug#begin('~/.vim/plugged')
 " Colors
 Plug 'tomasr/molokai'
 Plug 'chriskempson/vim-tomorrow-theme'
-Plug 'morhetz/gruvbox'
+Plug 'gruvbox-community/gruvbox'
 	let g:gruvbox_contrast_dark = 'hard'
 Plug 'joshdick/onedark.vim'
 
@@ -45,6 +43,10 @@ Plug 'scrooloose/nerdtree', { 'on': 'NERDTreeToggle' }
           \|   execute 'autocmd! nerd_loader'
           \| endif
 	augroup END
+
+Plug 'majutsushi/tagbar', { 'on': 'TagbarToggle' }
+    let g:tagbar_sort = 0
+Plug 'jiangmiao/auto-pairs'
 
 " Git
 Plug 'tpope/vim-fugitive'
@@ -395,6 +397,39 @@ noremap         <Plug>(TOC) <nop>
 inoremap <expr> <Plug>(TOC) exists('#textobj_undo_empty_change')?"\<esc>":''
 
 " ----------------------------------------------------------------------------
+" ?i# | inner comment
+" ----------------------------------------------------------------------------
+function! s:inner_comment(vis)
+  if synIDattr(synID(line('.'), col('.'), 0), 'name') !~? 'comment'
+    call s:textobj_cancel()
+    if a:vis
+      normal! gv
+    endif
+    return
+  endif
+
+  let origin = line('.')
+  let lines = []
+  for dir in [-1, 1]
+    let line = origin
+    let line += dir
+    while line >= 1 && line <= line('$')
+      execute 'normal!' line.'G^'
+      if synIDattr(synID(line('.'), col('.'), 0), 'name') !~? 'comment'
+        break
+      endif
+      let line += dir
+    endwhile
+    let line -= dir
+    call add(lines, line)
+  endfor
+
+  execute 'normal!' lines[0].'GV'.lines[1].'G'
+endfunction
+xmap <silent> i# :<C-U>call <SID>inner_comment(1)<CR><Plug>(TOC)
+omap <silent> i# :<C-U>call <SID>inner_comment(0)<CR><Plug>(TOC)
+
+" ----------------------------------------------------------------------------
 " ?ii / ?ai | indent-object
 " ?io       | strictly-indent-object
 " ----------------------------------------------------------------------------
@@ -441,6 +476,54 @@ xnoremap <silent> io :<c-u>call <SID>indent_object('==', 0, line("'<"), line("'>
 onoremap <silent> io :<c-u>call <SID>indent_object('==', 0, line('.'), line('.'), 0, 0)<cr>
 
 " ----------------------------------------------------------------------------
+" ?ic / ?iC | Blockwise column object
+" ----------------------------------------------------------------------------
+function! s:inner_blockwise_column(vmode, cmd)
+  if a:vmode == "\<C-V>"
+    let [pvb, pve] = [getpos("'<"), getpos("'>")]
+    normal! `z
+  endif
+
+  execute "normal! \<C-V>".a:cmd."o\<C-C>"
+  let [line, col] = [line('.'), col('.')]
+  let [cb, ce]    = [col("'<"), col("'>")]
+  let [mn, mx]    = [line, line]
+
+  for dir in [1, -1]
+    let l = line + dir
+    while line('.') > 1 && line('.') < line('$')
+      execute "normal! ".l."G".col."|"
+      execute "normal! v".a:cmd."\<C-C>"
+      if cb != col("'<") || ce != col("'>")
+        break
+      endif
+      let [mn, mx] = [min([line('.'), mn]), max([line('.'), mx])]
+      let l += dir
+    endwhile
+  endfor
+
+  execute printf("normal! %dG%d|\<C-V>%s%dG", mn, col, a:cmd, mx)
+
+  if a:vmode == "\<C-V>"
+    normal! o
+    if pvb[1] < line('.') | execute "normal! ".pvb[1]."G" | endif
+    if pvb[2] < col('.')  | execute "normal! ".pvb[2]."|" | endif
+    normal! o
+    if pve[1] > line('.') | execute "normal! ".pve[1]."G" | endif
+    if pve[2] > col('.')  | execute "normal! ".pve[2]."|" | endif
+  endif
+endfunction
+
+xnoremap <silent> ic mz:<C-U>call <SID>inner_blockwise_column(visualmode(), 'iw')<CR>
+xnoremap <silent> iC mz:<C-U>call <SID>inner_blockwise_column(visualmode(), 'iW')<CR>
+xnoremap <silent> ac mz:<C-U>call <SID>inner_blockwise_column(visualmode(), 'aw')<CR>
+xnoremap <silent> aC mz:<C-U>call <SID>inner_blockwise_column(visualmode(), 'aW')<CR>
+onoremap <silent> ic :<C-U>call   <SID>inner_blockwise_column('',           'iw')<CR>
+onoremap <silent> iC :<C-U>call   <SID>inner_blockwise_column('',           'iW')<CR>
+onoremap <silent> ac :<C-U>call   <SID>inner_blockwise_column('',           'aw')<CR>
+onoremap <silent> aC :<C-U>call   <SID>inner_blockwise_column('',           'aW')<CR>
+
+" ----------------------------------------------------------------------------
 " ?ie | entire object
 " ----------------------------------------------------------------------------
 xnoremap <silent> ie gg0oG$
@@ -452,9 +535,9 @@ onoremap <silent> ie :<C-U>execute "normal! m`"<Bar>keepjumps normal! ggVG<CR>
 " ----------------------------------------------------------------------------
 " vim-prettier
 " ----------------------------------------------------------------------------
-let g:prettier#autoformat = 1 
+let g:prettier#autoformat = 1
 autocmd BufWritePre *.js,*.jsx,*.mjs,*.ts,*.tsx,*.css,*.scss,*.html,*.json,*.md,*.yaml PrettierAsync
-let g:prettier#config#tab_width = 4 
+let g:prettier#config#tab_width = 4
 let g:prettier#config#print_width = 100
 
 " ----------------------------------------------------------------------------
@@ -468,6 +551,12 @@ command! -nargs=? -complete=dir AF
   \   'source': 'fd --type f --hidden --follow --exclude .git .ccls-cache install build --no-ignore . '.expand(<q-args>)
   \ })))
 
+if exists('$TMUX')
+  let g:fzf_layout = { 'tmux': '-p90%,60%' }
+else
+  let g:fzf_layout = { 'window': { 'width': 0.9, 'height': 0.6 } }
+endif
+
 nnoremap <silent> <expr> ; (expand('%') =~ 'NERD_tree' ? "\<c-w>\<c-w>" : '').":Files\<cr>"
 nnoremap <silent> <Leader>C        :Colors<CR>
 nnoremap <silent> <Leader><Enter>  :Buffers<CR>
@@ -480,12 +569,12 @@ nnoremap <silent> <Leader>f        :History<CR>
 nnoremap <silent> <Leader>h        :History:<CR>
 
 function! RipgrepFzf(query, fullscreen)
-  let command_fmt = 'rg --column --line-number --no-heading --color=always --smart-case %s || true'
-  let initial_command = printf(command_fmt, shellescape(a:query))
-  let reload_command = printf(command_fmt, '{q}')
-  let options = {'options': ['--phony', '--query', a:query, '--bind', 'change:reload:'.reload_command]}
-  let options = fzf#vim#with_preview(options, 'right', 'ctrl-/')
-  call fzf#vim#grep(initial_command, 1, options, a:fullscreen)
+    let command_fmt = 'rg --column --line-number --no-heading --color=always --smart-case %s || true'
+    let initial_command = printf(command_fmt, shellescape(a:query))
+    let reload_command = printf(command_fmt, '{q}')
+    let options = {'options': ['--phony', '--query', a:query, '--bind', 'change:reload:'.reload_command]}
+    let options = fzf#vim#with_preview(options, 'right', 'ctrl-/')
+    call fzf#vim#grep(initial_command, 1, options, a:fullscreen)
 endfunction
 
 command! -nargs=* -bang RG call RipgrepFzf(<q-args>, <bang>0)
@@ -494,18 +583,20 @@ nnoremap <silent> <Leader>r :RG <C-R><C-W><CR>
 " Highlight group
 highlight ExtraWhitespace ctermbg=red guibg=red
 
+" }}}
+" ============================================================================
+" AUTOCMD {{{
+" ============================================================================
 augroup vimrc
-	if has('nvim')
-		" auto-format
-		" autocmd BufWritePost * lua vim.lsp.buf.formatting()
-		" autocmd BufWritePre *.go lua org_imports(1000)
-	endif
-	" Return to last edit position when opening files (You want this!)
-	au BufReadPost * if line("'\"") > 1 && line("'\"") <= line("$") | exe "normal! g'\"" | endif
+    " Return to last edit position when opening files
+    au BufReadPost * if line("'\"") > 1 && line("'\"") <= line("$") | exe "normal! g'\"" | endif
 
     " http://vim.wikia.com/wiki/Highlight_unwanted_spaces
     au BufNewFile,BufRead,InsertLeave * silent! match ExtraWhitespace /\s\+$/
     au InsertEnter * silent! match ExtraWhitespace /\s\+\%#\@<!$/
-    autocmd InsertLeave * redraw!
+
+    au InsertLeave * redraw!
 
 augroup END
+
+" }}}

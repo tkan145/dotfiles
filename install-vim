@@ -14,9 +14,11 @@ ln -sf $BASE/vimrc ~/.vimrc
 # nvim
 mkdir -p ~/.config/nvim
 ln -sf $BASE/init.vim ~/.config/nvim/init.vim
-ln -sf ~/.vim/autoload/plug.vim ~/.config/nvim/autoload/
+# ln -sf ~/.vim/autoload/plug.vim ~/.config/nvim/autoload/
 
 mkdir -p ~/.config/nvim/lua
-ln -sf $BASE/lsp_config.lua ~/.config/nvim/lua/lsp_config.lua
+ln -sf $BASE/lua/lsp_config.lua ~/.config/nvim/lua/lsp_config.lua
 
-vim +PlugInstall +qall
+ln -sf $BASE/snippets ~/.config/nvim/snippets
+
+vi +PlugInstall +qall
