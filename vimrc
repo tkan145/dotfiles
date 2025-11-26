@@ -159,7 +159,7 @@ endif
 " 80 chars/line
 set textwidth=0
 if exists('&colorcolumn')
-  set colorcolumn=100
+  set colorcolumn=80
 endif
 
 " Keep the cursor on the same column
@@ -550,6 +550,11 @@ command! -nargs=? -complete=dir AF
   \ call fzf#run(fzf#wrap(fzf#vim#with_preview({
   \   'source': 'fd --type f --hidden --follow --exclude .git .ccls-cache install build --no-ignore . '.expand(<q-args>)
   \ })))
+
+command! -bang -nargs=* GGrep
+  \ call fzf#vim#grep(
+  \   'git grep --line-number -- '.fzf#shellescape(<q-args>),
+  \   fzf#vim#with_preview({'dir': systemlist('git rev-parse --show-toplevel')[0]}), <bang>0)
 
 if exists('$TMUX')
   let g:fzf_layout = { 'tmux': '-p90%,60%' }

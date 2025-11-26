@@ -27,7 +27,8 @@ local on_attach = function(client, bufnr)
     vim.keymap.set('n', '<space>rn', vim.lsp.buf.rename, opts)
     vim.keymap.set('n', '<space>ca', vim.lsp.buf.code_action, opts)
     vim.keymap.set('n', 'gr', vim.lsp.buf.references, opts)
-    vim.keymap.set('n', '<space>f', vim.lsp.buf.formatting, opts)
+    -- vim.keymap.set('n', '<space>f', vim.lsp.buf.formatting, opts)
+    vim.keymap.set('n', '<space>f', vim.lsp.buf.format, opts)
 end
 
 
@@ -159,3 +160,82 @@ nvim_lsp.gopls.setup {
         },
     },
 }
+
+nvim_lsp.lua_ls.setup {
+  on_init = function(client)
+    if client.workspace_folders then
+      local path = client.workspace_folders[1].name
+      if vim.uv.fs_stat(path..'/.luarc.json') or vim.uv.fs_stat(path..'/.luarc.jsonc') then
+        return
+      end
+    end
+
+    client.config.settings.Lua = vim.tbl_deep_extend('force', client.config.settings.Lua, {
+      runtime = {
+        -- Tell the language server which version of Lua you're using
+        -- (most likely LuaJIT in the case of Neovim)
+        version = 'LuaJIT'
+      },
+      -- Make the server aware of Neovim runtime files
+      workspace = {
+        checkThirdParty = false,
+        library = {
+          vim.env.VIMRUNTIME
+          -- Depending on the usage, you might want to add additional paths here.
+          -- "${3rd}/luv/library"
+          -- "${3rd}/busted/library",
+        }
+        -- or pull in all of 'runtimepath'. NOTE: this is a lot slower
+        -- library = vim.api.nvim_get_runtime_file("", true)
+      }
+    })
+  end,
+  settings = {
+    Lua = {}
+  },
+  on_attach = on_attach,
+  capabilities = capabilities,
+}
+
+-- textDocument/diagnostic support until 0.10.0 is released
+_timers = {}
+local function setup_diagnostics(client, buffer)
+  if require("vim.lsp.diagnostic")._enable then
+    return
+  end
+
+  local diagnostic_handler = function()
+    local params = vim.lsp.util.make_text_document_params(buffer)
+    client.request("textDocument/diagnostic", { textDocument = params }, function(err, result)
+      if err then
+        local err_msg = string.format("diagnostics error - %s", vim.inspect(err))
+        vim.lsp.log.error(err_msg)
+      end
+      local diagnostic_items = {}
+      if result then
+        diagnostic_items = result.items
+      end
+      vim.lsp.diagnostic.on_publish_diagnostics(
+        nil,
+        vim.tbl_extend("keep", params, { diagnostics = diagnostic_items }),
+        { client_id = client.id }
+      )
+    end)
+  end
+
+  diagnostic_handler() -- to request diagnostics on buffer when first attaching
+
+  vim.api.nvim_buf_attach(buffer, false, {
+    on_lines = function()
+      if _timers[buffer] then
+        vim.fn.timer_stop(_timers[buffer])
+      end
+      _timers[buffer] = vim.fn.timer_start(200, diagnostic_handler)
+    end,
+    on_detach = function()
+      if _timers[buffer] then
+        vim.fn.timer_stop(_timers[buffer])
+      end
+    end,
+  })
+end

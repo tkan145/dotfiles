@@ -20,5 +20,6 @@ mkdir -p ~/.config/nvim/lua
 ln -sf $BASE/lua/lsp_config.lua ~/.config/nvim/lua/lsp_config.lua
 
 ln -sf $BASE/snippets ~/.config/nvim/snippets
+ln -sf $BASE/after ~/.config/nvim/after
 
 vi +PlugInstall +qall
