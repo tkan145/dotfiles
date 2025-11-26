@@ -1,21 +1,23 @@
-local nvim_lsp = require('lspconfig')
+vim.diagnostic.config({virtual_text = true})
 
-local opts = { noremap=true, silent=true }
-vim.keymap.set('n', '<space>e', vim.diagnostic.open_float, opts)
-vim.keymap.set('n', '[d', vim.diagnostic.goto_prev, opts)
-vim.keymap.set('n', ']d', vim.diagnostic.goto_next, opts)
-vim.keymap.set('n', '<space>q', vim.diagnostic.setloclist, opts)
+-- Enable rounded borders in floating windows
+vim.o.winborder = 'rounded'
 
--- Use an on_attach function to only map the following keys
--- after the language server attaches to the current buffer
-local on_attach = function(client, bufnr)
+-- Add noslect to completeopt, otherwise autocompletion is annoying
+vim.cmd("set completeopt+=noselect")
+
+vim.api.nvim_create_autocmd('LspAttach', {
+  callback = function(ev)
+    local client = vim.lsp.get_client_by_id(ev.data.client_id)
+    if client:supports_method('textDocument/completion') then
+      vim.lsp.completion.enable(true, client.id, ev.buf, { autotrigger = true })
+    end
+
     -- Mappings.
     local opts = { noremap=true, silent=true }
-
     -- See `:help vim.lsp.*` for documentation on any of the below functions
     vim.keymap.set('n', 'gD', vim.lsp.buf.declaration, opts)
     vim.keymap.set('n', 'gd', vim.lsp.buf.definition, opts)
-    vim.keymap.set('n', 'K', vim.lsp.buf.hover, opts)
     vim.keymap.set('n', 'gi', vim.lsp.buf.implementation, opts)
     vim.keymap.set('n', '<C-k>', vim.lsp.buf.signature_help, opts)
     vim.keymap.set('n', '<space>wa', vim.lsp.buf.add_workspace_folder, opts)
@@ -24,12 +26,11 @@ local on_attach = function(client, bufnr)
         print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
     end, opts)
     vim.keymap.set('n', '<space>D', vim.lsp.buf.type_definition, opts)
-    vim.keymap.set('n', '<space>rn', vim.lsp.buf.rename, opts)
-    vim.keymap.set('n', '<space>ca', vim.lsp.buf.code_action, opts)
-    vim.keymap.set('n', 'gr', vim.lsp.buf.references, opts)
-    -- vim.keymap.set('n', '<space>f', vim.lsp.buf.formatting, opts)
     vim.keymap.set('n', '<space>f', vim.lsp.buf.format, opts)
-end
+    vim.keymap.set('n', '<space>e', vim.diagnostic.open_float, opts)
+    vim.keymap.set('n', '<space>q', vim.diagnostic.setloclist, opts)
+  end,
+})
 
 
 -- Import on save
@@ -39,7 +40,7 @@ function org_imports(timeout_ms)
 
     local params = vim.lsp.util.make_range_params()
     params.context = {only = {"source.organizeImports"}}
-    local result = vim.lsp.buf_request_sync(0, "textDocument/codeAction", params, wait_ms)
+    local result = vim.lsp.buf_request_sync(0, "textDocument/codeAction", params, timeout_ms)
     for cid, res in pairs(result or {}) do
       for _, r in pairs(res.result or {}) do
         if r.edit then
@@ -49,31 +50,7 @@ function org_imports(timeout_ms)
       end
     end
 
-    -- ############## START OLD
-    -- params.context = context
-
-    -- See the implementation of the textDocument/codeAction callback
-    -- (lua/vim/lsp/handler.lua) for how to do this properly.
-    -- local result = vim.lsp.buf_request_sync(0, "textDocument/codeAction", params, timeout_ms)
-    -- if not result or next(result) == nil then return end
-    -- local actions = result[1].result
-    -- if not actions then return end
-    -- local action = actions[1]
-
-    -- textDocument/codeAction can return either Command[] or CodeAction[]. If it
-    -- is a CodeAction, it can have either an edit, a command or both. Edits
-    -- should be executed first.
-    -- if action.edit or type(action.command) == "table" then
-      -- if action.edit then
-      --   vim.lsp.util.apply_workspace_edit(action.edit)
-      -- end
-      -- if type(action.command) == "table" then
-        -- vim.lsp.buf.execute_command(action.command)
-      -- end
-    -- else
-      -- vim.lsp.buf.execute_command(action)
-    -- end
-    -- ############## END OLD
+    vim.lsp.buf.format({async = false})
 end
 
 local has_words_before = function()
@@ -135,33 +112,50 @@ local capabilities = require("cmp_nvim_lsp").default_capabilities()
 
 -- Use a loop to conveniently call 'setup' on multiple servers and
 -- map buffer local keybindings when the language server attaches
-local servers = { 'pyright', 'clangd', 'denols'}
+local servers = { 'pyright', 'denols'}
 for _, lsp in ipairs(servers) do
-    nvim_lsp[lsp].setup {
+    vim.lsp.config(lsp, {
         on_attach = on_attach,
         capabilities = capabilities,
         flags = {
             debounce_text_changes = 150,
         }
-    }
+    })
 end
 
+vim.lsp.config["clangd"] = {
+  cmd = {'clangd', '--background-index', '--clang-tidy', '--log=verbose'},
+  init_options = {
+    fallbackFlags = { '-std=c++11' },
+  },
+  on_attach = on_attach,
+  capabilities = capabilities,
+  flags = {
+      debounce_text_changes = 150
+  }
+}
+
 -- Gopls custom config
-nvim_lsp.gopls.setup {
+vim.lsp.config["gopls"] = {
     cmd = {"gopls", "serve"},
-    on_attach = on_attach,
+    -- on_attach = on_attach,
     capabilities = capabilities,
     settings = {
         gopls = {
             staticcheck = true,
-            analyses= {
-                fieldalignment =  true
-            }
+            analyses = {
+              unusedparams = true,
+            },
+            buildFlags = {
+              "-tags=integration unit"
+            },
+            gofumpt = true,
         },
     },
 }
+vim.lsp.enable("gopls")
 
-nvim_lsp.lua_ls.setup {
+vim.lsp.config["lua_ls"] = {
   on_init = function(client)
     if client.workspace_folders then
       local path = client.workspace_folders[1].name
@@ -196,46 +190,3 @@ nvim_lsp.lua_ls.setup {
   on_attach = on_attach,
   capabilities = capabilities,
 }
-
--- textDocument/diagnostic support until 0.10.0 is released
-_timers = {}
-local function setup_diagnostics(client, buffer)
-  if require("vim.lsp.diagnostic")._enable then
-    return
-  end
-
-  local diagnostic_handler = function()
-    local params = vim.lsp.util.make_text_document_params(buffer)
-    client.request("textDocument/diagnostic", { textDocument = params }, function(err, result)
-      if err then
-        local err_msg = string.format("diagnostics error - %s", vim.inspect(err))
-        vim.lsp.log.error(err_msg)
-      end
-      local diagnostic_items = {}
-      if result then
-        diagnostic_items = result.items
-      end
-      vim.lsp.diagnostic.on_publish_diagnostics(
-        nil,
-        vim.tbl_extend("keep", params, { diagnostics = diagnostic_items }),
-        { client_id = client.id }
-      )
-    end)
-  end
-
-  diagnostic_handler() -- to request diagnostics on buffer when first attaching
-
-  vim.api.nvim_buf_attach(buffer, false, {
-    on_lines = function()
-      if _timers[buffer] then
-        vim.fn.timer_stop(_timers[buffer])
-      end
-      _timers[buffer] = vim.fn.timer_start(200, diagnostic_handler)
-    end,
-    on_detach = function()
-      if _timers[buffer] then
-        vim.fn.timer_stop(_timers[buffer])
-      end
-    end,
-  })
-end
